@@ -4,7 +4,7 @@ const zod = require("zod");
 const jwt = require("jsonwebtoken");
 const bcrypt = require("bcrypt");
 const { JWT_SECRET } = require("../config");
-const { User } = require('../db');
+const { User, Account } = require('../db');
 const { authMiddleware } = require('../middleware');
 
 const validSignup = zod.object({
@@ -47,6 +47,11 @@ router.post("/signup", async (req, res) => {
     }
     const hashedPassword = await bcrypt.hash(body.password, 10);
     const newUser = await User.create({ ...body, password: hashedPassword });
+    const id = newUser._id;
+    await Account.create({
+        userId,
+        balance: 1 + Math.random()*10000
+    })
     const jwttoken = jwt.sign({
         userId: newUser._id
     }, JWT_SECRET);

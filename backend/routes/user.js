@@ -6,7 +6,7 @@ const bcrypt = require("bcrypt");
 const { JWT_SECRET } = require("../config");
 const { User, Account } = require('../db');
 const { authMiddleware } = require('../middleware');
-
+console.log(JWT_SECRET)
 const validSignup = zod.object({
     username: zod.string().email(),
     password: zod.string().min(1, "Password is required"),
@@ -47,9 +47,9 @@ router.post("/signup", async (req, res) => {
     }
     const hashedPassword = await bcrypt.hash(body.password, 10);
     const newUser = await User.create({ ...body, password: hashedPassword });
-    const id = newUser._id;
+    const userId = newUser._id;
     await Account.create({
-        userId,
+        userId: userId,
         balance: 1 + Math.random()*10000
     })
     const jwttoken = jwt.sign({
@@ -101,19 +101,41 @@ router.post("/signin", async (req, res) => {
     });
 });
 
-router.put("/", authMiddleware, async(req, res, next)=>{
+router.put("/", authMiddleware, async (req, res) => {
     const body = req.body;
+
     const result = updateUser.safeParse(body);
-    if (!result.success){
-        res.status(411).json({
-            message: "Invalid inputs!"
-        })
+    if (!result.success) {
+        return res.status(400).json({
+            message: "Invalid inputs!",
+            errors: result.error.errors
+        });
     }
-    const user = await User.updateOne({_id: req.userId}, req.body);
-    res.json({
-        message: "User details updated successfully!"
-    })
-})
+
+    try {
+        const updateResult = await User.updateOne(
+            { _id: req.userId },
+            { $set: body }
+        );
+
+        if (updateResult.nModified === 0) {
+            return res.status(404).json({
+                message: "User not found or no changes made!"
+            });
+        }
+
+        res.json({
+            message: "User details updated successfully!"
+        });
+    } catch (error) {
+        console.error("Error updating user:", error);
+        res.status(500).json({
+            message: "Failed to update user details!",
+            error: error.message
+        });
+    }
+});
+
 
 router.get('/filter', async(req,res)=>{
     const filter = req.query.filter || "";
